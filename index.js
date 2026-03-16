@@ -29,7 +29,7 @@ app.post("/start", async (req, res) => {
     const r = await fetch(`${APIFY}/acts/${ACTOR}/runs?token=${apifyKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usernames: [username], resultsLimit: 30, resultsType: "posts" }),
+      body: JSON.stringify({ usernames: [username], resultsLimit: 30 }),
     });
     const b = await r.json().catch(() => ({}));
     if (!r.ok) {
@@ -61,7 +61,7 @@ app.post("/start-batch", async (req, res) => {
       const r = await fetch(`${APIFY}/acts/${ACTOR}/runs?token=${apifyKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usernames: [username], resultsLimit: 30, resultsType: "posts" }),
+        body: JSON.stringify({ usernames: [username], resultsLimit: 30 }),
       });
       const b = await r.json().catch(() => ({}));
       if (!r.ok) {
@@ -491,7 +491,12 @@ function getClientJS() {
 
   // ── Build metrics ─────────────────────────────────────────────────────────────
   js += "function buildMetrics(raw){\n";
+  js += "  if(!raw||!raw.length)throw new Error('[buildMetrics] Empty dataset.');\n";
   js += "  var p=raw[0];\n";
+  // Guard: if the first item looks like a post not a profile, surface a clear error
+  js += "  if(!p.username&&!p.followersCount&&(p.likesCount!=null||p.videoViewCount!=null)){\n";
+  js += "    throw new Error('[buildMetrics] Apify returned post objects instead of profile data. Remove resultsType from the Apify call.');\n";
+  js += "  }\n";
   js += "  var rawP=(p.latestPosts||p.topPosts||p.posts||[]).filter(function(x){return x&&x.timestamp;});\n";
   js += "  var F=p.followersCount||1,N=rawP.length||1;\n";
   js += "  var scored=rawP.map(function(x){return Object.assign({},x,{_v:gv(x),_sc:getScore(x,F),_er:getER(x,F),_type:pType(x.type),_hook:((x.caption||'').split('\\n')[0]||'').trim().slice(0,200),_url:x.url||(x.shortCode?'https://instagram.com/p/'+x.shortCode:'#')});}).sort(function(a,b){return b._sc-a._sc;});\n";
