@@ -646,7 +646,15 @@ function getClientJS() {
   js += "      var result=await runSingle(username,apifyKey);\n";
   js += "      document.getElementById('load-msg').textContent='Building report...';\n";
   js += "      await sleep(200);\n";
-  js += "      renderSingleReport(result.d,result.ai);\n";
+  js += "      console.log('[CL] d:', JSON.stringify({handle:result.d&&result.d.handle,total:result.d&&result.d.total,top5len:result.d&&result.d.top5&&result.d.top5.length}));\n";
+  js += "      console.log('[CL] ai keys:', JSON.stringify(Object.keys(result.ai||{})));\n";
+  js += "      try{\n";
+  js += "        renderSingleReport(result.d,result.ai);\n";
+  js += "      }catch(renderErr){\n";
+  js += "        console.error('[CL] render threw:', renderErr);\n";
+  js += "        var errDiv=document.getElementById('report');\n";
+  js += "        errDiv.innerHTML='<div style=\"padding:20px;background:#EF444420;border:1px solid #EF444444;border-radius:12px;font-size:12px;color:#EF4444;font-family:monospace\"><b>Render error: </b>'+String(renderErr.message||renderErr)+'</div>';\n";
+  js += "      }\n";
   js += "      showScreen('report');\n";
   js += "    }catch(e){\n";
   js += "      document.getElementById('err-msg').textContent=e.message||String(e);\n";
