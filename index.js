@@ -720,22 +720,22 @@ function getClientJS() {
   js += "    +'<div style=\"font-size:10px;color:var(--muted-l);margin-top:2px\">'+pct+'% of content</div></div>';\n";
   js += "}\n";
 
-  // ── SINGLE REPORT RENDERER ────────────────────────────────────────────────────
-  js += "function renderSingleReport(d,ai){\n";
-  js += "  document.getElementById('nav-h').textContent='@'+d.handle;\n";
-  js += "  var sc=(ai&&ai.verdict&&ai.verdict.score)||0;\n";
+
+  // ── SHARED CREATOR BODY ───────────────────────────────────────────────────────
+  // Returns HTML for ALL sections of one creator. Used by both single + batch.
+  // ai may be null or partially empty — every block guards defensively.
+  js += "function renderCreatorBody(d,ai){\n";
   js += "  var h='';\n";
+  js += "  var sc=(ai&&ai.verdict&&ai.verdict.score)||0;\n";
+  js += "  var aiOk=!!(ai&&(ai.hookAnalysis||ai.patterns||ai.themes||ai.generatedHooks));\n";
 
-  // Creator identity row
-  js += "  h+='<div style=\"display:flex;gap:14px;align-items:center;margin-bottom:24px;flex-wrap:wrap\">';\n";
-  js += "  if(d.pic)h+='<img src=\"'+d.pic+'\" onerror=\"this.style.display=\\'none\\'\" style=\"width:56px;height:56px;border-radius:50%;border:2px solid var(--green);object-fit:cover;flex-shrink:0\"/>';\n";
-  js += "  h+='<div style=\"flex:1;min-width:0\"><h1 style=\"font-size:22px;font-weight:800;margin-bottom:3px;color:var(--text-d)\">'+esc(d.name||'@'+d.handle)+'</h1>';\n";
-  js += "  h+='<div style=\"font-size:12px;color:var(--muted-d);line-height:1.6\">'+esc((d.bio||'').slice(0,120))+((d.bio||'').length>120?'&hellip;':'')+'</div></div>';\n";
-  js += "  h+='</div>';\n";
+  // Warning banner if AI data is missing
+  js += "  if(!aiOk){\n";
+  js += "    h+='<div style=\"background:#F59E0B18;border:1px solid #F59E0B44;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:12px;color:#F59E0B\">&#9888; AI analysis returned no sections. Check GEMINI_API_KEY in Railway Variables and retry.</div>';\n";
+  js += "  }\n";
 
-  // Row 1: dark stat cards + gauge
+  // Stats + gauge row
   js += "  h+='<div style=\"display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px\">';\n";
-  // Left: stats grid
   js += "  h+='<div style=\"display:flex;flex-wrap:wrap;gap:10px\">';\n";
   js += "  h+=dkStatCard('Followers',fmt(d.followers));\n";
   js += "  h+=dkStatCard('Avg ER',d.avgER+'%',d.avgER>=3?'Strong':d.avgER>=1.5?'Average':'Weak',d.avgER>=3?'#5EE87A':d.avgER>=1.5?'#F59E0B':'#EF4444');\n";
@@ -743,14 +743,13 @@ function getClientJS() {
   js += "  h+=dkStatCard('VFR',d.vfr+'%',d.vfr>=30?'Excellent':d.vfr>=10?'Good':'Weak',d.vfr>=30?'#5EE87A':d.vfr>=10?'#F59E0B':'#EF4444');\n";
   js += "  h+=dkStatCard('Cadence',d.cadence,d.total+' posts');\n";
   js += "  h+='</div>';\n";
-  // Right: gauge card
   js += "  h+='<div class=\"dk\" style=\"display:flex;flex-direction:column;align-items:center;justify-content:center\">';\n";
   js += "  h+=gauge(sc);\n";
   js += "  if(ai&&ai.verdict&&ai.verdict.bestUse)h+='<div style=\"font-size:11px;color:var(--muted-l);text-align:center;margin-top:8px;line-height:1.5;max-width:160px\">'+esc(ai.verdict.bestUse)+'</div>';\n";
   js += "  h+='</div>';\n";
-  js += "  h+='</div>';\n"; // end 2-col grid
+  js += "  h+='</div>';\n";
 
-  // Format performance (dark card, full width)
+  // Format performance
   js += "  h+='<div class=\"dk\" style=\"margin-bottom:12px\">';\n";
   js += "  h+=sh('Format Performance',true);\n";
   js += "  h+=dkBar('Reels',d.fmt.reel.pct,'#5EE87A',fmt(d.fmt.reel.avgViews)+' avg views &middot; '+d.fmt.reel.avgER+'% ER');\n";
@@ -758,33 +757,37 @@ function getClientJS() {
   js += "  h+=dkBar('Static',d.fmt.static.pct,'rgba(255,255,255,0.2)',d.fmt.static.avgER+'% avg ER');\n";
   js += "  h+='</div>';\n";
 
-  // Top 5 posts (light cards)
+  // Top 5 posts
   js += "  h+='<div style=\"margin-bottom:12px\">';\n";
-  js += "  h+='<div style=\"font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-d);margin-bottom:10px\">Top 5 Posts</div>';\n";
-  js += "  d.top5.forEach(function(p,i){\n";
-  js += "    var hi=ai&&ai.hookAnalysis?ai.hookAnalysis.find(function(x){return x.rank===i+1;}):null;\n";
-  js += "    var tc=p._type==='reel'?'#22C55E':p._type==='carousel'?'#9B8BF4':'#94A3B8';\n";
-  js += "    h+='<div class=\"lt\" style=\"display:flex;gap:12px;margin-bottom:8px\">';\n";
-  js += "    h+='<div style=\"font-size:'+(i===0?'24':'18')+'px;font-weight:800;color:'+(i===0?'#22C55E':'var(--muted-d)')+';flex-shrink:0;width:28px;line-height:1.2;padding-top:2px\">'+(i+1)+'</div>';\n";
-  js += "    h+='<div style=\"flex:1;min-width:0\">';\n";
-  js += "    h+='<div style=\"display:flex;flex-wrap:wrap;gap:5px;margin-bottom:7px\">';\n";
-  js += "    h+=tag(tc,p._type);\n";
-  js += "    if(hi){h+=tag(HOOK_COL[hi.type]||'#F59E0B',hi.label);h+=tag('#14B8A6',hi.strength+'/10 hook');}\n";
-  js += "    h+=tag('#22C55E',p._er.toFixed(2)+'% ER');\n";
-  js += "    if(p._v>0)h+=tag('#9B8BF4',fmt(p._v)+' views');\n";
-  js += "    h+='</div>';\n";
-  js += "    h+='<p style=\"margin:0 0 5px;font-size:13px;line-height:1.6;color:var(--text-d)\"><b style=\"color:var(--green-dark)\">Hook: </b>'+esc(p._hook||'(no caption)')+'</p>';\n";
-  js += "    if(hi&&hi.why)h+='<p style=\"margin:0 0 5px;font-size:11px;color:var(--muted-d);font-style:italic\">'+esc(hi.why)+'</p>';\n";
-  js += "    h+='<div style=\"display:flex;gap:12px\"><span style=\"font-size:11px;color:var(--muted-d)\">&hearts; '+fmt(p.likesCount)+'</span><span style=\"font-size:11px;color:var(--muted-d)\">&#128172; '+fmt(p.commentsCount)+'</span>';\n";
-  js += "    if(p._url&&p._url!=='#')h+='<a href=\"'+p._url+'\" target=\"_blank\" style=\"font-size:11px;color:#9B8BF4;text-decoration:none\">View &#8599;</a>';\n";
-  js += "    h+='</div></div></div>';\n";
-  js += "  });\n";
+  js += "  h+=sh('Top 5 Posts by Performance',false);\n";
+  js += "  if(d.top5&&d.top5.length){\n";
+  js += "    d.top5.forEach(function(p,i){\n";
+  js += "      var hi=ai&&ai.hookAnalysis?ai.hookAnalysis.find(function(x){return x.rank===i+1;}):null;\n";
+  js += "      var tc=p._type==='reel'?'#22C55E':p._type==='carousel'?'#9B8BF4':'#94A3B8';\n";
+  js += "      h+='<div class=\"lt\" style=\"display:flex;gap:12px;margin-bottom:8px\">';\n";
+  js += "      h+='<div style=\"font-size:'+(i===0?'24':'18')+'px;font-weight:800;color:'+(i===0?'#22C55E':'var(--muted-d)')+';flex-shrink:0;width:28px;line-height:1.2;padding-top:2px\">'+(i+1)+'</div>';\n";
+  js += "      h+='<div style=\"flex:1;min-width:0\">';\n";
+  js += "      h+='<div style=\"display:flex;flex-wrap:wrap;gap:5px;margin-bottom:7px\">';\n";
+  js += "      h+=tag(tc,p._type);\n";
+  js += "      if(hi){h+=tag(HOOK_COL[hi.type]||'#F59E0B',hi.label);h+=tag('#14B8A6',hi.strength+'/10 hook');}\n";
+  js += "      h+=tag('#22C55E',p._er.toFixed(2)+'% ER');\n";
+  js += "      if(p._v>0)h+=tag('#9B8BF4',fmt(p._v)+' views');\n";
+  js += "      h+='</div>';\n";
+  js += "      h+='<p style=\"margin:0 0 5px;font-size:13px;line-height:1.6;color:var(--text-d)\"><b style=\"color:var(--green-dark)\">Hook: </b>'+esc(p._hook||'(no caption)')+'</p>';\n";
+  js += "      if(hi&&hi.why)h+='<p style=\"margin:0 0 5px;font-size:11px;color:var(--muted-d);font-style:italic\">'+esc(hi.why)+'</p>';\n";
+  js += "      h+='<div style=\"display:flex;gap:12px\"><span style=\"font-size:11px;color:var(--muted-d)\">&hearts; '+fmt(p.likesCount)+'</span><span style=\"font-size:11px;color:var(--muted-d)\">&#128172; '+fmt(p.commentsCount)+'</span>';\n";
+  js += "      if(p._url&&p._url!=='#')h+='<a href=\"'+p._url+'\" target=\"_blank\" style=\"font-size:11px;color:#9B8BF4;text-decoration:none\">View &#8599;</a>';\n";
+  js += "      h+='</div></div></div>';\n";
+  js += "    });\n";
+  js += "  } else {\n";
+  js += "    h+='<p style=\"color:var(--muted-d);font-size:13px\">No post data available.</p>';\n";
+  js += "  }\n";
   js += "  h+='</div>';\n";
 
-  // Hook patterns (dark, 2-col grid)
+  // Hook pattern clusters
   js += "  if(ai&&ai.patterns&&ai.patterns.length){\n";
   js += "    h+='<div class=\"dk\" style=\"margin-bottom:12px\">';\n";
-  js += "    h+=sh('Hook Pattern Clusters',true);\n";
+  js += "    h+=sh('Top Hook Patterns',true);\n";
   js += "    h+='<div class=\"grid\" style=\"grid-template-columns:repeat(auto-fill,minmax(200px,1fr))\">';\n";
   js += "    ai.patterns.forEach(function(p){\n";
   js += "      h+='<div style=\"background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px\">';\n";
@@ -797,10 +800,10 @@ function getClientJS() {
   js += "    h+='</div></div>';\n";
   js += "  }\n";
 
-  // Themes (light cards)
+  // Content themes
   js += "  if(ai&&ai.themes&&ai.themes.length){\n";
   js += "    h+='<div style=\"margin-bottom:12px\">';\n";
-  js += "    h+='<div style=\"font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-d);margin-bottom:10px\">Content Themes</div>';\n";
+  js += "    h+=sh('Content Themes',false);\n";
   js += "    h+='<div class=\"grid\" style=\"grid-template-columns:repeat(auto-fill,minmax(190px,1fr))\">';\n";
   js += "    ai.themes.forEach(function(t,i){\n";
   js += "      var c=TCOLS[i%TCOLS.length];\n";
@@ -814,27 +817,7 @@ function getClientJS() {
   js += "    h+='</div></div>';\n";
   js += "  }\n";
 
-  // Generated hooks (light cards, 2-col)
-  js += "  if(ai&&ai.generatedHooks&&ai.generatedHooks.length){\n";
-  js += "    h+='<div style=\"margin-bottom:12px\">';\n";
-  js += "    h+='<div style=\"font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-d);margin-bottom:10px\">10 Hook Ideas for Man Matters</div>';\n";
-  js += "    h+='<div class=\"grid\" style=\"grid-template-columns:repeat(auto-fill,minmax(300px,1fr))\">';\n";
-  js += "    ai.generatedHooks.forEach(function(hk,i){\n";
-  js += "      var c=HOOK_COL[hk.type]||'#22C55E';\n";
-  js += "      h+='<div class=\"lt\" style=\"border-left:3px solid '+c+'\">';\n";
-  js += "      h+='<div style=\"display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px;align-items:center\">';\n";
-  js += "      h+='<span class=\"mono\" style=\"color:var(--muted-d);font-size:10px;font-weight:700\">#'+(i<9?'0':'')+(i+1)+'</span>';\n";
-  js += "      h+=tag(c,(hk.type||'').replace(/_/g,' '));\n";
-  js += "      if(hk.angle)h+='<span style=\"font-size:11px;color:var(--muted-d)\">'+esc(hk.angle)+'</span>';\n";
-  js += "      h+='</div>';\n";
-  js += "      h+='<p style=\"margin:0 0 6px;font-weight:700;font-size:13px;color:var(--text-d);line-height:1.6\">&quot;'+esc(hk.hook)+'&quot;</p>';\n";
-  js += "      if(hk.note)h+='<p style=\"margin:0;font-size:11px;color:var(--muted-d);font-style:italic\">'+esc(hk.note)+'</p>';\n";
-  js += "      h+='</div>';\n";
-  js += "    });\n";
-  js += "    h+='</div></div>';\n";
-  js += "  }\n";
-
-  // Frameworks
+  // Repeatable frameworks (insights)
   js += "  if(ai&&ai.frameworks&&ai.frameworks.length){\n";
   js += "    h+='<div class=\"lt\" style=\"margin-bottom:12px\">';\n";
   js += "    h+=sh('Repeatable Frameworks',false);\n";
@@ -851,10 +834,29 @@ function getClientJS() {
   js += "    h+='</div>';\n";
   js += "  }\n";
 
-  // Brand fit (2-col: flags + verdict)
+  // Generated hooks (recommended content)
+  js += "  if(ai&&ai.generatedHooks&&ai.generatedHooks.length){\n";
+  js += "    h+='<div style=\"margin-bottom:12px\">';\n";
+  js += "    h+=sh('10 Recommended Hook Ideas for Man Matters',false);\n";
+  js += "    h+='<div class=\"grid\" style=\"grid-template-columns:repeat(auto-fill,minmax(300px,1fr))\">';\n";
+  js += "    ai.generatedHooks.forEach(function(hk,i){\n";
+  js += "      var c=HOOK_COL[hk.type]||'#22C55E';\n";
+  js += "      h+='<div class=\"lt\" style=\"border-left:3px solid '+c+'\">';\n";
+  js += "      h+='<div style=\"display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px;align-items:center\">';\n";
+  js += "      h+='<span class=\"mono\" style=\"color:var(--muted-d);font-size:10px;font-weight:700\">#'+(i<9?'0':'')+(i+1)+'</span>';\n";
+  js += "      h+=tag(c,(hk.type||'').replace(/_/g,' '));\n";
+  js += "      if(hk.angle)h+='<span style=\"font-size:11px;color:var(--muted-d)\">'+esc(hk.angle)+'</span>';\n";
+  js += "      h+='</div>';\n";
+  js += "      h+='<p style=\"margin:0 0 6px;font-weight:700;font-size:13px;color:var(--text-d);line-height:1.6\">&quot;'+esc(hk.hook)+'&quot;</p>';\n";
+  js += "      if(hk.note)h+='<p style=\"margin:0;font-size:11px;color:var(--muted-d);font-style:italic\">'+esc(hk.note)+'</p>';\n";
+  js += "      h+='</div>';\n";
+  js += "    });\n";
+  js += "    h+='</div></div>';\n";
+  js += "  }\n";
+
+  // Brand fit: flags + verdict
   js += "  if((ai&&ai.flags&&ai.flags.length)||(ai&&ai.verdict)){\n";
   js += "    h+='<div style=\"display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px\">';\n";
-  // Flags
   js += "    h+='<div class=\"dk\">';\n";
   js += "    h+=sh('Vetting Flags',true);\n";
   js += "    (ai.flags||[]).forEach(function(f){\n";
@@ -864,8 +866,7 @@ function getClientJS() {
   js += "      h+='<p style=\"margin:0;font-size:11px;color:var(--muted-l);line-height:1.5\">'+esc(f.implication)+'</p></div>';\n";
   js += "    });\n";
   js += "    h+='</div>';\n";
-  // Verdict
-  js += "    if(ai.verdict){\n";
+  js += "    if(ai&&ai.verdict){\n";
   js += "      h+='<div class=\"lt\">';\n";
   js += "      h+=sh('Verdict',false);\n";
   js += "      h+='<div style=\"font-size:11px;color:var(--green-dark);font-weight:700;margin-bottom:5px\">&#10003; Strengths</div>';\n";
@@ -882,11 +883,25 @@ function getClientJS() {
   js += "    h+='</div>';\n";
   js += "  }\n";
 
+  js += "  return h;\n";
+  js += "}\n";
+
+  // ── SINGLE REPORT RENDERER ────────────────────────────────────────────────────
+  js += "function renderSingleReport(d,ai){\n";
+  js += "  document.getElementById('nav-h').textContent='@'+d.handle;\n";
+  js += "  var h='';\n";
+  // Creator identity header
+  js += "  h+='<div style=\"display:flex;gap:14px;align-items:center;margin-bottom:24px;flex-wrap:wrap\">';\n";
+  js += "  if(d.pic)h+='<img src=\"'+d.pic+'\" onerror=\"this.style.display=\\'none\\'\" style=\"width:56px;height:56px;border-radius:50%;border:2px solid var(--green);object-fit:cover;flex-shrink:0\"/>';\n";
+  js += "  h+='<div style=\"flex:1;min-width:0\"><h1 style=\"font-size:22px;font-weight:800;margin-bottom:3px;color:var(--text-d)\">'+esc(d.name||'@'+d.handle)+'</h1>';\n";
+  js += "  h+='<div style=\"font-size:12px;color:var(--muted-d);line-height:1.6\">'+esc((d.bio||'').slice(0,120))+((d.bio||'').length>120?'&hellip;':'')+'</div></div>';\n";
+  js += "  h+='</div>';\n";
+  // All sections via shared function
+  js += "  h+=renderCreatorBody(d,ai);\n";
   // Footer
   js += "  h+='<div style=\"border-top:1px solid var(--border-l);padding-top:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px\">';\n";
   js += "  h+='<span style=\"font-size:11px;color:var(--muted-d)\">CreatorLens &middot; Apify + Gemini &middot; '+d.total+' posts analyzed</span>';\n";
   js += "  h+='<button class=\"btn-sm\" onclick=\"showScreen(\\'setup\\')\">Analyze Another &#8594;</button></div>';\n";
-
   js += "  document.getElementById('report').innerHTML=h;\n";
   js += "}\n";
 
@@ -894,7 +909,6 @@ function getClientJS() {
   js += "function renderBatchReport(metricsArray,batchResult){\n";
   js += "  var ranking=(batchResult&&batchResult.ranking)||[];\n";
   js += "  var analyses=(batchResult&&batchResult.analyses)||{};\n";
-  // Sort metrics by rank
   js += "  var sorted=ranking.map(function(r){return{rank:r,m:metricsArray.find(function(m){return m.handle===r.handle;})};}).filter(function(x){return x.m;});\n";
   js += "  document.getElementById('nav-h').textContent='Batch \u2014 '+metricsArray.length+' creators';\n";
   js += "  var h='';\n";
@@ -905,40 +919,35 @@ function getClientJS() {
   js += "  h+='<p style=\"font-size:13px;color:var(--muted-d)\">'+metricsArray.length+' creators analyzed &middot; ranked by brand fit score</p>';\n";
   js += "  h+='</div>';\n";
 
-  // Ranking table (dark card)
+  // Ranking table
   js += "  h+='<div class=\"dk\" style=\"margin-bottom:16px\">';\n";
-  js += "  h+=sh('Ranking by Brand Fit',true);\n";
+  js += "  h+=sh('Ranking by Brand Fit Score',true);\n";
   js += "  sorted.forEach(function(item,idx){\n";
   js += "    var r=item.rank,m=item.m;\n";
   js += "    var sc=r.score||0;\n";
   js += "    var fc=sc>=7?'#5EE87A':sc>=5?'#F59E0B':'#EF4444';\n";
   js += "    var rankBg=idx===0?'#5EE87A':idx===1?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.06)';\n";
   js += "    var rankFg=idx===0?'#0D0D1C':'var(--text-l)';\n";
-  js += "    h+='<div style=\"display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid rgba(255,255,255,0.06)\">';\n";
+  js += "    h+='<div style=\"padding:14px 0;border-bottom:1px solid rgba(255,255,255,0.06)\">';\n";
+  js += "    h+='<div style=\"display:flex;align-items:center;gap:12px\">';\n";
   js += "    h+='<div class=\"rank-badge\" style=\"background:'+rankBg+';color:'+rankFg+'\">'+r.rank+'</div>';\n";
-  // Profile pic if available
   js += "    if(m.pic)h+='<img src=\"'+m.pic+'\" onerror=\"this.style.display=\\'none\\'\" style=\"width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0\"/>';\n";
-  js += "    h+='<div style=\"flex:1;min-width:0\">';\n";
-  js += "    h+='<div style=\"font-size:14px;font-weight:700;color:var(--text-l)\">@'+esc(m.handle)+'</div>';\n";
-  js += "    h+='<div style=\"font-size:11px;color:var(--muted-l);margin-top:2px\">'+esc(r.oneliner||'')+'</div>';\n";
-  js += "    h+='</div>';\n";
-  // Stats strip
+  js += "    h+='<div style=\"flex:1;min-width:0\"><div style=\"font-size:14px;font-weight:700;color:var(--text-l)\">@'+esc(m.handle)+'</div>';\n";
+  js += "    h+='<div style=\"font-size:11px;color:var(--muted-l);margin-top:2px\">'+esc(r.oneliner||'')+'</div></div>';\n";
   js += "    h+='<div style=\"display:flex;gap:16px;flex-wrap:wrap\">';\n";
-  js += "    h+='<div style=\"text-align:right\"><div style=\"font-size:10px;color:var(--muted-l);text-transform:uppercase;letter-spacing:.08em\">Followers</div><div class=\"mono\" style=\"font-size:14px;color:var(--text-l);font-weight:700\">'+fmt(m.followers)+'</div></div>';\n";
-  js += "    h+='<div style=\"text-align:right\"><div style=\"font-size:10px;color:var(--muted-l);text-transform:uppercase;letter-spacing:.08em\">Avg ER</div><div class=\"mono\" style=\"font-size:14px;color:var(--text-l);font-weight:700\">'+m.avgER+'%</div></div>';\n";
-  js += "    h+='<div style=\"text-align:right\"><div style=\"font-size:10px;color:var(--muted-l);text-transform:uppercase;letter-spacing:.08em\">Brand Fit</div><div class=\"mono\" style=\"font-size:18px;color:'+fc+';font-weight:800\">'+sc+'/10</div></div>';\n";
-  js += "    h+='</div>';\n";
-  // Top strength + flag
-  js += "    h+='</div>';\n";
-  js += "    h+='<div style=\"padding:8px 0 12px 44px;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;gap:12px;flex-wrap:wrap\">';\n";
+  js += "    h+='<div style=\"text-align:right\"><div style=\"font-size:10px;color:var(--muted-l);text-transform:uppercase\">Followers</div><div class=\"mono\" style=\"font-size:14px;color:var(--text-l);font-weight:700\">'+fmt(m.followers)+'</div></div>';\n";
+  js += "    h+='<div style=\"text-align:right\"><div style=\"font-size:10px;color:var(--muted-l);text-transform:uppercase\">Avg ER</div><div class=\"mono\" style=\"font-size:14px;color:var(--text-l);font-weight:700\">'+m.avgER+'%</div></div>';\n";
+  js += "    h+='<div style=\"text-align:right\"><div style=\"font-size:10px;color:var(--muted-l);text-transform:uppercase\">Brand Fit</div><div class=\"mono\" style=\"font-size:18px;color:'+fc+';font-weight:800\">'+sc+'/10</div></div>';\n";
+  js += "    h+='</div></div>';\n";
+  js += "    h+='<div style=\"padding:6px 0 0 44px;display:flex;gap:12px;flex-wrap:wrap\">';\n";
   js += "    if(r.topStrength)h+='<span style=\"font-size:11px;color:#5EE87A\">&#10003; '+esc(r.topStrength)+'</span>';\n";
   js += "    if(r.topFlag)h+='<span style=\"font-size:11px;color:#EF4444\">&#9888; '+esc(r.topFlag)+'</span>';\n";
-  js += "    h+='</div>';\n";
+  js += "    h+='</div></div>';\n";
   js += "  });\n";
-  js += "  h+='</div>';\n"; // end ranking card
+  js += "  h+='</div>';\n";
 
-  // Individual expandable reports
-  js += "  h+='<div style=\"font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-d);margin-bottom:12px\">Individual Reports</div>';\n";
+  // Individual full reports (expandable) — use renderCreatorBody for full sections
+  js += "  h+='<div style=\"font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-d);margin-bottom:12px\">Individual Full Reports</div>';\n";
   js += "  sorted.forEach(function(item,idx){\n";
   js += "    var r=item.rank,m=item.m;\n";
   js += "    var ai=analyses[m.handle]||null;\n";
@@ -950,55 +959,23 @@ function getClientJS() {
   js += "    h+='<div style=\"display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none\" onclick=\"toggleCreator('+idx+')\">';\n";
   js += "    h+='<div class=\"rank-badge\" style=\"background:var(--bg);color:var(--text-d);font-size:13px\">'+r.rank+'</div>';\n";
   js += "    if(m.pic)h+='<img src=\"'+m.pic+'\" onerror=\"this.style.display=\\'none\\'\" style=\"width:32px;height:32px;border-radius:50%;object-fit:cover\"/>';\n";
-  js += "    h+='<div style=\"flex:1\"><span style=\"font-size:15px;font-weight:700;color:var(--text-d)\">@'+esc(m.handle)+'</span><span style=\"font-size:12px;color:var(--muted-d);margin-left:8px\">'+(m.name?esc(m.name):'')+'</span></div>';\n";
+  js += "    h+='<div style=\"flex:1\"><span style=\"font-size:15px;font-weight:700;color:var(--text-d)\">@'+esc(m.handle)+'</span>';\n";
+  js += "    if(m.name)h+='<span style=\"font-size:12px;color:var(--muted-d);margin-left:8px\">'+esc(m.name)+'</span>';\n";
+  js += "    h+='</div>';\n";
   js += "    h+='<div class=\"mono\" style=\"font-size:22px;font-weight:800;color:'+fc+'\">'+sc+'<span style=\"font-size:12px;color:var(--muted-d)\">/10</span></div>';\n";
   js += "    h+='<span id=\"arr-'+idx+'\" style=\"color:var(--muted-d);font-size:18px;transition:transform .2s\">&#9660;</span>';\n";
   js += "    h+='</div>';\n";
-  // Collapsible content
+  // Collapsible content — FULL report via renderCreatorBody
   js += "    h+='<div id=\"'+divId+'\" class=\"collapsible\" style=\"margin-top:16px;padding-top:16px;border-top:1px solid var(--border-l)\">';\n";
-  js += "    if(ai){\n";
-  // Mini stats row
-  js += "      h+='<div style=\"display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px\">';\n";
-  js += "      h+=ltStatCard('Followers',fmt(m.followers),'','var(--text-d)');\n";
-  js += "      h+=ltStatCard('Avg ER',m.avgER+'%',m.avgER>=3?'Strong':'Average',m.avgER>=3?'#22C55E':'#F59E0B');\n";
-  js += "      h+=ltStatCard('Reel Views',fmt(m.avgViews),'','var(--text-d)');\n";
-  js += "      h+=ltStatCard('VFR',m.vfr+'%',m.vfr>=30?'Excellent':'Good','var(--text-d)');\n";
-  js += "      h+='</div>';\n";
-  // Generated hooks
-  js += "      if(ai.generatedHooks&&ai.generatedHooks.length){\n";
-  js += "        h+='<div style=\"font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-d);margin-bottom:8px\">Hook Ideas for Man Matters</div>';\n";
-  js += "        h+='<div class=\"grid\" style=\"grid-template-columns:repeat(auto-fill,minmax(280px,1fr));margin-bottom:12px\">';\n";
-  js += "        ai.generatedHooks.slice(0,4).forEach(function(hk){\n";
-  js += "          var c=HOOK_COL[hk.type]||'#22C55E';\n";
-  js += "          h+='<div style=\"background:var(--bg);border:1px solid var(--border-l);border-left:3px solid '+c+';border-radius:0 8px 8px 0;padding:10px 12px\">';\n";
-  js += "          h+=tag(c,(hk.type||'').replace(/_/g,' '));\n";
-  js += "          h+='<p style=\"margin:6px 0 4px;font-size:12px;font-weight:600;color:var(--text-d);line-height:1.5\">&quot;'+esc(hk.hook)+'&quot;</p>';\n";
-  js += "          if(hk.note)h+='<p style=\"margin:0;font-size:10px;color:var(--muted-d);font-style:italic\">'+esc(hk.note)+'</p>';\n";
-  js += "          h+='</div>';\n";
-  js += "        });\n";
-  js += "        h+='</div>';\n";
-  js += "      }\n";
-  // Flags
-  js += "      if(ai.flags&&ai.flags.length){\n";
-  js += "        h+='<div style=\"display:flex;flex-wrap:wrap;gap:6px\">';\n";
-  js += "        ai.flags.forEach(function(f){\n";
-  js += "          var c=SEV_COL[f.severity]||'#94A3B8';\n";
-  js += "          h+=tag(c,f.flag);\n";
-  js += "        });\n";
-  js += "        h+='</div>';\n";
-  js += "      }\n";
-  js += "    } else {\n";
-  js += "      h+='<p style=\"color:var(--muted-d);font-size:13px\">Detailed analysis not available for this creator.</p>';\n";
-  js += "    }\n";
-  js += "    h+='</div>';\n"; // end collapsible
-  js += "    h+='</div>';\n"; // end lt card
+  js += "    h+=renderCreatorBody(m,ai);\n";
+  js += "    h+='</div>';\n";
+  js += "    h+='</div>';\n";
   js += "  });\n";
 
   // Footer
   js += "  h+='<div style=\"border-top:1px solid var(--border-l);padding-top:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px\">';\n";
   js += "  h+='<span style=\"font-size:11px;color:var(--muted-d)\">CreatorLens Batch &middot; Apify + Gemini &middot; '+metricsArray.length+' creators</span>';\n";
   js += "  h+='<button class=\"btn-sm\" onclick=\"showScreen(\\'setup\\')\">New Analysis &#8594;</button></div>';\n";
-
   js += "  document.getElementById('report').innerHTML=h;\n";
   js += "}\n";
 
