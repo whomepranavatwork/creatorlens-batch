@@ -1,0 +1,14 @@
+{
+  "name": "creatorlens-batch",
+  "version": "1.0.0",
+  "main": "server-batch.js",
+  "scripts": {
+    "start": "node server-batch.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
